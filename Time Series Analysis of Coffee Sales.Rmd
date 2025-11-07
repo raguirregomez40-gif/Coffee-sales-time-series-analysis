@@ -1,0 +1,116 @@
+---
+title: "Time Series of Coffee Sales"
+author: "Ramon Aguirre"
+date: "2024-09-29"
+output:
+  ioslides_presentation: default
+  beamer_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(knitr))
+library(readr)
+coffeedf <- read_csv("index.csv",show_col_types = FALSE)
+```
+## Data Used
+In this analysis we will be using the sales data from a vending machine in Ukraine which began in march 2024, and have been updated until the 21st of September 2024. The Data includes the day and the time the coffee was sold. The type of payment used, type of drink, and ID of buyer is given but will not be used only the amount per transaction will be used. 
+```{r, echo=FALSE}
+selected_rows <- coffeedf %>%
+  select(1, 2, 3, 5, 6) %>%  # Select columns 1, 2, 3, 5, and 6
+  head(5)
+selected_rows
+```
+
+
+
+
+## Looking For:
+
+In the data we will be looking to see if there are any patterns in the sales. We will also see if the vending machine is making revenue and worth keeping considering its opening was earlier this year. We will do this through a graph where we will look for any pattern of seasonality or trend throughout the months or weeks. Due to the fact that the machine must be maintained we will look for the best time to do so, taking advantage of the detailed time given.
+
+## First
+
+In order to get the data we need and avoid tip toeing around the one we don't in our original data frame we will select only the columns we want to use. By grouping the data we are making every day an instance and its value is the total revenue for that day.
+```{r}
+neededcol <- coffeedf %>% group_by(date) %>% summarize(total_Sales 
+= sum(money)) ## selects the 2 col date and money and groups by day
+head(neededcol,5)
+```
+
+
+## Time Series Analysis
+
+A time series analysis as the name describes is used when we have the date our data was collected. This allows us to explore if there are any daily, weekly, monthly or yearly trends or patterns. In this case we will use a daily analysis given we have a very detailed timestamp and the period for which we have data is not very long. For this we will start with the columns we need and in order to graph it as a time series we will use the following function.
+
+```{r}
+tsline <- ts(neededcol$total_Sales,start = c(2024,3),frequency = 365 )
+```
+Here we obtain a value for every day since the first day of the 3rd month of the year and the frequency is 365 since our data is daily.
+
+## Product
+Once we obtain the time series we have a list of dates which will be our x-axis and our y axis is our revenue, giving us the graph below. The graph does not show us any seasonality, but it does show us that the sales of coffee have been active, meaning there is revenue therefore worth looking into its future.
+
+```{r, echo= FALSE, out.width= '80%', out.height= '60%'}
+plot(tsline)
+```
+
+
+## Weekly Instead of Daily
+
+We will take a look at the time series in a weekly fashion given that a daily interval did not show any patterns. In order to do this we will make the dates into date values and not just a string. Then we can round down to the week of, or the first day of the week and when we group and sum the values of each week group we obtain a data frame with 31 weeks. Then we use ts() to turn into a time series type and when we plot we can see a slight peak around 2024.4 
+```{r, echo=FALSE, out.width= '70%', out.height= '50%'}
+weekcol <- neededcol
+weekcol$date <- as.Date(weekcol$date)
+weekcol$week <- cut(weekcol$date, breaks = "week", start.on.monday = FALSE)
+weekly_sales <- aggregate(total_Sales ~ week, data = weekcol, sum)
+tsweek <- ts(weekly_sales$total_Sales, start = c(2024, 8), frequency = 52)
+plot(tsweek)
+```
+
+## Continued
+By plotting the weekly sales to get the dates we can see the highest point is around the week of 05/19/2024.
+```{r,echo=FALSE,out.width= '80%', out.height= '80%'}
+plot(weekly_sales)
+```
+
+## Helpful
+
+The vending machine needs to be filed, it need maintenance, therefore it would be useful to know when it's a good time to do it. In order to determine this, on a 24 hour line we can map the number of purchases at that time of the day throughout the year. But first we need will need to do the following
+```{r}
+bestDown <- coffeedf %>% select(datetime, money)
+## make a different data frame with time and money as to not
+## mess with our original coffedf
+bestDown$datetime <- as.POSIXct(bestDown$datetime) 
+bestDown$hour <- as.integer(format(bestDown$datetime, "%H"))
+# Then turn datetime into hours 
+purchByHour <- bestDown %>% group_by(hour) %>% summarize(numPurch = n())
+## After, using the data from bestdown data frame we can make 
+## a new df and it has the count of purchases per hour of the day
+```
+```{r,echo=FALSE}
+activityPlot <- ggplot(purchByHour, aes(x = hour, y = numPurch)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(
+        title = "Purchases Throughout the Day",
+        x = "Hour of the Day",
+        y = "Number of Purchases"
+    ) +
+    scale_x_continuous(breaks = 0:23)
+```
+
+## Continued
+
+This gives us the plot which shows us that before 6 Am the vending machine is not used therefore it would be a good time for maintenance or restocking. Also after 10 Pm there is low usage which makes it possible to also restock the night before or any time until 6 AM. 
+```{r,echo=FALSE,out.width= '80%', out.height= '60%'}
+activityPlot
+```
+
+
+## Conclusion
+
+Over all there are many used for which taking the time and date of instances helps. For Example, in the weekly summary, If we could backtrack to that week we could figure out the cause of this uproar in sales during this time. For example if there was an event or a large gathering we can deem this as a random even but if there was a new beverage or a feature was implemented or a poster was put up we could continue using that tactic to keep attracting customers. 
+
+For more information on the data please visit [https://www.kaggle.com/datasets/ihelon/coffee-sales](https://www.kaggle.com/datasets/ihelon/coffee-sales)
